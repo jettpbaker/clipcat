@@ -1,34 +1,33 @@
+import { ALL_FORMATS, BlobSource, Input } from 'mediabunny'
 import { useState } from 'react'
-import './App.css'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
 
 function App() {
-	const [count, setCount] = useState(0)
+	const [duration, setDuration] = useState<null | number>(null)
+
+	async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+		const file = e.target.files?.[0] ?? null
+		if (!file) return
+
+		const input = new Input({
+			formats: ALL_FORMATS,
+			source: new BlobSource(file),
+		})
+
+		const duration = await input.computeDuration()
+		setDuration(duration)
+	}
 
 	return (
-		<>
-			<div>
-				<a href='https://vite.dev' target='_blank'>
-					<img src={viteLogo} className='logo' alt='Vite logo' />
-				</a>
-				<a href='https://react.dev' target='_blank'>
-					<img src={reactLogo} className='logo react' alt='React logo' />
-				</a>
-			</div>
-			<h1>Vite + React</h1>
-			<div className='card'>
-				<button onClick={() => setCount((count) => count + 1)}>
-					count is {count}
-				</button>
-				<p>
-					Edit <code>src/App.tsx</code> and save to test HMR
-				</p>
-			</div>
-			<p className='read-the-docs'>
-				Click on the Vite and React logos to learn more
-			</p>
-		</>
+		<main>
+			<h1>ClipCat</h1>
+
+			<label>
+				Upload a file:
+				<input type='file' onChange={handleFileUpload} />
+			</label>
+
+			{duration && <p>{duration.toFixed(2)}s</p>}
+		</main>
 	)
 }
 
