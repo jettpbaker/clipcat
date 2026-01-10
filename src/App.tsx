@@ -5,8 +5,7 @@ import viteLogo from '/vite.svg'
 
 function App() {
 	const [count, setCount] = useState(0)
-	const x = { a: 1, b: 2 }
-	const y = 'test'
+
 	return (
 		<>
 			<div>
