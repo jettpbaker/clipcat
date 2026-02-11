@@ -7,13 +7,10 @@ import {
   Mp4OutputFormat,
   Output,
 } from 'mediabunny'
-import { AUDIO_BITRATE, TARGET_OUTPUT_BYTES } from '../constants'
+import { AUDIO_BITRATE } from '../constants'
 import {
   calculateBitrate,
   formatBytes,
-  getCandidateWidths,
-  getVideoDurationSeconds,
-  pickBestResult,
 } from './utils'
 
 type CompressionResult = {
