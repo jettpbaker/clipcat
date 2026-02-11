@@ -61,10 +61,40 @@ export function calculateBitrate(durationSeconds: number) {
 	return finalBitrate
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
 	if (bytes < 1024) return `${bytes} B`
 	const kb = bytes / 1024
 	if (kb < 1024) return `${kb.toFixed(1)} KB`
 	const mb = kb / 1024
 	return `${mb.toFixed(1)} MB`
+}
+
+/**
+ * Build list of widths to try compression at.
+ * Includes 1280 and 1920 if they don't exceed original (no upscaling).
+ * Always includes original width. Deduped and sorted smallest-first.
+ */
+export function getCandidateWidths(originalWidth: number): number[] {
+	return [1280, 1920, originalWidth]
+		.filter((w) => w <= originalWidth)
+		.filter((w, i, arr) => arr.indexOf(w) === i)
+		.sort((a, b) => a - b)
+}
+
+/**
+ * Pick the best result from multiple compression attempts.
+ * Prefers: largest file that's still under the target size.
+ * Fallback: smallest file if all exceed target.
+ */
+export function pickBestResult<T extends { sizeBytes: number }>(
+	results: T[],
+	targetBytes: number
+): T {
+	const underLimit = results
+		.filter((r) => r.sizeBytes <= targetBytes)
+		.sort((a, b) => b.sizeBytes - a.sizeBytes)
+
+	return (
+		underLimit[0] || [...results].sort((a, b) => a.sizeBytes - b.sizeBytes)[0]
+	)
 }

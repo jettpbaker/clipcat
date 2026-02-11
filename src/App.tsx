@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { parseTimeToSeconds } from './lib/utils'
-import { compressVideo } from './lib/video'
+import { compressVideo, type PassProgress } from './lib/video'
 
 function App() {
 	const [startTime, setStartTime] = useState<string>('')
@@ -9,18 +9,31 @@ function App() {
 	const [url, setUrl] = useState<string | null>(null)
 	const [size, setSize] = useState<string | null>(null)
 	const [isConverting, setIsConverting] = useState(false)
-	const [progress, setProgress] = useState(0)
+	const [pass1Progress, setPass1Progress] = useState(0)
+	const [pass2Progress, setPass2Progress] = useState(0)
+	const [currentPass, setCurrentPass] = useState<1 | 2>(1)
 
 	function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
 		const selectedFile = e.target.files?.[0] ?? null
 		setFile(selectedFile)
 	}
 
+	function handleProgress(progress: PassProgress) {
+		setCurrentPass(progress.pass)
+		if (progress.pass === 1) {
+			setPass1Progress(progress.progress)
+		} else {
+			setPass2Progress(progress.progress)
+		}
+	}
+
 	async function handleConvert() {
 		if (!file) return
 
 		setIsConverting(true)
-		setProgress(0)
+		setPass1Progress(0)
+		setPass2Progress(0)
+		setCurrentPass(1)
 
 		const start = parseTimeToSeconds(startTime)
 		const end = parseTimeToSeconds(endTime)
@@ -31,7 +44,7 @@ function App() {
 				start,
 				end,
 			},
-			onProgress: setProgress,
+			onProgress: handleProgress,
 		}
 
 		try {
@@ -86,10 +99,31 @@ function App() {
 				onClick={handleConvert}
 				disabled={!file || isConverting}
 			>
-				{isConverting
-					? `Converting... ${Math.round(progress * 100)}%`
-					: 'Convert'}
+				Convert
 			</button>
+
+			{isConverting && (
+				<div style={{ marginTop: '1rem' }}>
+					<div>
+						<span>Pass 1 (Trim): {Math.round(pass1Progress * 100)}%</span>
+						<progress
+							value={pass1Progress}
+							max={1}
+							style={{ width: '200px', marginLeft: '0.5rem' }}
+						/>
+						{currentPass === 1 && ' ⏳'}
+					</div>
+					<div style={{ marginTop: '0.5rem' }}>
+						<span>Pass 2 (Compress): {Math.round(pass2Progress * 100)}%</span>
+						<progress
+							value={pass2Progress}
+							max={1}
+							style={{ width: '200px', marginLeft: '0.5rem' }}
+						/>
+						{currentPass === 2 && ' ⏳'}
+					</div>
+				</div>
+			)}
 
 			<section>
 				{size && (
