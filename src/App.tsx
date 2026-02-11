@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { parseTimeToSeconds } from './lib/utils'
 import { compressVideo, type PassProgress } from './lib/video'
 
+import PresetPicker from './PresetPicker'
+
 function App() {
 	const [startTime, setStartTime] = useState<string>('')
 	const [endTime, setEndTime] = useState<string>('')
@@ -62,6 +64,10 @@ function App() {
 	return (
 		<main>
 			<h1>ClipCat</h1>
+
+			<br />
+
+			<PresetPicker />
 
 			<br />
 
