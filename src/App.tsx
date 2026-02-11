@@ -1,285 +1,147 @@
-import {
-  ALL_FORMATS,
-  BlobSource,
-  BufferTarget,
-  Conversion,
-  Input,
-  Mp4OutputFormat,
-  Output,
-  QUALITY_HIGH,
-  QUALITY_LOW,
-  QUALITY_MEDIUM,
-  QUALITY_VERY_HIGH,
-  QUALITY_VERY_LOW,
-  type Quality,
-} from 'mediabunny'
-import { useEffect, useRef, useState } from 'react'
-
-function parseTimeToSeconds(time: string): number | null {
-  const trimmed = time.trim()
-  if (!trimmed) return null
-
-  const [minutesPart, secondsPart] = trimmed.split(':')
-  const minutes = Number(minutesPart)
-  const seconds = Number(secondsPart)
-
-  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null
-
-  return (minutes || 0) * 60 + (seconds || 0)
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  const kb = bytes / 1024
-  if (kb < 1024) return `${kb.toFixed(1)} KB`
-  const mb = kb / 1024
-  return `${mb.toFixed(1)} MB`
-}
-
-const qualityById = {
-  veryHigh: QUALITY_VERY_HIGH,
-  high: QUALITY_HIGH,
-  medium: QUALITY_MEDIUM,
-  low: QUALITY_LOW,
-  veryLow: QUALITY_VERY_LOW,
-} as const satisfies Record<string, Quality>
-
-type QualityId = keyof typeof qualityById
-
-const QUALITY_OPTIONS = [
-  { id: 'veryHigh', label: 'Very High' },
-  { id: 'high', label: 'High' },
-  { id: 'medium', label: 'Medium' },
-  { id: 'low', label: 'Low' },
-  { id: 'veryLow', label: 'Very Low' },
-] as const satisfies readonly { id: QualityId; label: string }[]
-
-type OutputState = {
-  status: 'idle' | 'encoding' | 'done' | 'error'
-  url: string | null
-  sizeBytes: number | null
-  error: string | null
-}
-
-const INITIAL_OUTPUT_STATE: OutputState = {
-  status: 'idle',
-  url: null,
-  sizeBytes: null,
-  error: null,
-}
+import { useState } from 'react'
+import { parseTimeToSeconds } from './lib/utils'
+import { compressVideo, type PassProgress } from './lib/video'
 
 function App() {
-  const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [qualityId, setQualityId] = useState<QualityId>('medium')
-  const [output, setOutput] = useState<OutputState>(INITIAL_OUTPUT_STATE)
-  const [isConverting, setIsConverting] = useState(false)
+	const [startTime, setStartTime] = useState<string>('')
+	const [endTime, setEndTime] = useState<string>('')
+	const [file, setFile] = useState<File | null>(null)
+	const [url, setUrl] = useState<string | null>(null)
+	const [size, setSize] = useState<string | null>(null)
+	const [isConverting, setIsConverting] = useState(false)
+	const [pass1Progress, setPass1Progress] = useState(0)
+	const [pass2Progress, setPass2Progress] = useState(0)
+	const [currentPass, setCurrentPass] = useState<1 | 2>(1)
 
-  const jobIdRef = useRef(0)
-  const outputUrlRef = useRef<string | null>(null)
+	function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+		const selectedFile = e.target.files?.[0] ?? null
+		setFile(selectedFile)
+	}
 
-  useEffect(() => {
-    return () => {
-      if (outputUrlRef.current) URL.revokeObjectURL(outputUrlRef.current)
-    }
-  }, [])
+	function handleProgress(progress: PassProgress) {
+		setCurrentPass(progress.pass)
+		if (progress.pass === 1) {
+			setPass1Progress(progress.progress)
+		} else {
+			setPass2Progress(progress.progress)
+		}
+	}
 
-  function resetOutput() {
-    if (outputUrlRef.current) URL.revokeObjectURL(outputUrlRef.current)
-    outputUrlRef.current = null
-    setOutput(INITIAL_OUTPUT_STATE)
-  }
+	async function handleConvert() {
+		if (!file) return
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    jobIdRef.current += 1
+		setIsConverting(true)
+		setPass1Progress(0)
+		setPass2Progress(0)
+		setCurrentPass(1)
 
-    const selectedFile = e.target.files?.[0] ?? null
-    setFile(selectedFile)
-    setIsConverting(false)
-    resetOutput()
-  }
+		const start = parseTimeToSeconds(startTime)
+		const end = parseTimeToSeconds(endTime)
 
-  async function encodeVariant(options: {
-    file: File
-    trim: { start: number; end?: number }
-    width?: number
-    videoBitrate: number | Quality
-  }): Promise<{ url: string; sizeBytes: number }> {
-    const input = new Input({
-      formats: ALL_FORMATS,
-      source: new BlobSource(options.file),
-    })
+		const options = {
+			file,
+			trim: {
+				start,
+				end,
+			},
+			onProgress: handleProgress,
+		}
 
-    const output = new Output({
-      format: new Mp4OutputFormat(),
-      target: new BufferTarget(),
-    })
+		try {
+			const { url: compressedUrl, size } = await compressVideo(options)
 
-    const videoTrack = await input.getPrimaryVideoTrack()
-    const width = options.width ?? videoTrack?.displayWidth
+			if (url) URL.revokeObjectURL(url)
 
-    const conversion = await Conversion.init({
-      input,
-      output,
-      video: {
-        width,
-        bitrate: options.videoBitrate,
-      },
-      audio: {
-        numberOfChannels: 1,
-        bitrate: QUALITY_HIGH,
-      },
-      trim: options.trim,
-      tags: {},
-    })
+			setUrl(compressedUrl)
+			setSize(size)
+		} finally {
+			setIsConverting(false)
+		}
+	}
 
-    await conversion.execute()
+	return (
+		<main>
+			<h1>ClipCat</h1>
 
-    const buffer = output.target.buffer
-    if (!buffer) {
-      throw new Error('Conversion completed but produced no output buffer')
-    }
+			<br />
 
-    const blob = new Blob([buffer], { type: 'video/mp4' })
-    const url = URL.createObjectURL(blob)
+			<label>
+				Upload a file:
+				<input type='file' accept='video/*' onChange={handleFileChange} />
+			</label>
 
-    return { url, sizeBytes: blob.size }
-  }
+			<br />
 
-  async function handleConvert() {
-    if (!file || isConverting) return
+			<label>
+				Start time (MM:SS):
+				<input
+					type='text'
+					placeholder='00:00'
+					value={startTime}
+					onChange={(e) => setStartTime(e.target.value)}
+				/>
+			</label>
 
-    const startSeconds = parseTimeToSeconds(startTime) ?? 0
-    const endSeconds = parseTimeToSeconds(endTime)
+			<label>
+				End time (MM:SS):
+				<input
+					type='text'
+					placeholder='00:00'
+					value={endTime}
+					onChange={(e) => setEndTime(e.target.value)}
+				/>
+			</label>
 
-    if (endSeconds !== null && endSeconds <= startSeconds) {
-      setOutput((prev) => ({
-        ...prev,
-        status: 'error',
-        error: 'End time must be after start time',
-      }))
-      return
-    }
+			<br />
 
-    const trim = {
-      start: startSeconds,
-      ...(endSeconds !== null ? { end: endSeconds } : {}),
-    }
+			<button
+				type='button'
+				onClick={handleConvert}
+				disabled={!file || isConverting}
+			>
+				Convert
+			</button>
 
-    const jobId = jobIdRef.current
+			{isConverting && (
+				<div style={{ marginTop: '1rem' }}>
+					<div>
+						<span>Pass 1 (Trim): {Math.round(pass1Progress * 100)}%</span>
+						<progress
+							value={pass1Progress}
+							max={1}
+							style={{ width: '200px', marginLeft: '0.5rem' }}
+						/>
+						{currentPass === 1 && ' ⏳'}
+					</div>
+					<div style={{ marginTop: '0.5rem' }}>
+						<span>Pass 2 (Compress): {Math.round(pass2Progress * 100)}%</span>
+						<progress
+							value={pass2Progress}
+							max={1}
+							style={{ width: '200px', marginLeft: '0.5rem' }}
+						/>
+						{currentPass === 2 && ' ⏳'}
+					</div>
+				</div>
+			)}
 
-    setIsConverting(true)
-    resetOutput()
-    setOutput({ status: 'encoding', url: null, sizeBytes: null, error: null })
+			<section>
+				{size && (
+					<div>
+						<h2>Compressed Size:</h2>
+						<p>{size}</p>
+					</div>
+				)}
 
-    try {
-      const AUTO_TARGET_SIZE_MB = 9
-      if (!endSeconds) return
-      const durationSeconds = endSeconds - startSeconds
-      const targetSizeBits = AUTO_TARGET_SIZE_MB * 8 * 1_000_000
-      const videoBitrateBps = Math.round(targetSizeBits / durationSeconds)
-      console.log({ videoBitrateBps })
-
-
-      const { url, sizeBytes } = await encodeVariant({
-        file,
-        trim,
-        // videoBitrate: qualityById[qualityId],
-        videoBitrate: videoBitrateBps
-      })
-
-      if (jobId !== jobIdRef.current) {
-        URL.revokeObjectURL(url)
-        return
-      }
-
-      outputUrlRef.current = url
-      setOutput({ status: 'done', url, sizeBytes, error: null })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-
-      if (jobId !== jobIdRef.current) return
-
-      setOutput({ status: 'error', url: null, sizeBytes: null, error: message })
-    } finally {
-      if (jobId === jobIdRef.current) setIsConverting(false)
-    }
-  }
-
-  const sizeLabel =
-    output.sizeBytes !== null ? formatBytes(output.sizeBytes) : null
-
-  return (
-    <main>
-      <h1>ClipCat</h1>
-
-      <label>
-        Upload a file:
-        <input type='file' accept='video/*' onChange={handleFileChange} />
-      </label>
-
-      <label>
-        Start time (MM:SS):
-        <input
-          type='text'
-          placeholder='00:00'
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-        />
-      </label>
-
-      <label>
-        End time (MM:SS):
-        <input
-          type='text'
-          placeholder='00:00'
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-        />
-      </label>
-
-      <label>
-        Output quality:
-        <select
-          value={qualityId}
-          onChange={(e) => setQualityId(e.currentTarget.value as QualityId)}
-        >
-          {QUALITY_OPTIONS.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <button
-        type='button'
-        onClick={handleConvert}
-        disabled={!file || isConverting}
-      >
-        {isConverting ? 'Converting…' : 'Convert'}
-      </button>
-
-      {output.status === 'error' && output.error && (
-        <p>Error: {output.error}</p>
-      )}
-
-      <section>
-        <h2>Output{sizeLabel ? ` (${sizeLabel})` : ''}</h2>
-
-        <p>
-          {output.status === 'idle' && 'Idle'}
-          {output.status === 'encoding' && 'Encoding…'}
-          {output.status === 'done' && 'Done'}
-          {output.status === 'error' && 'Error'}
-        </p>
-
-        {/*biome-ignore lint/a11y/useMediaCaption: user-uploaded video preview */}
-        {output.url && <video src={output.url} controls />}
-      </section>
-    </main>
-  )
+				{url && (
+					<div>
+						<h2>Compressed Video:</h2>
+						<video src={url} controls style={{ maxWidth: '66%' }} />
+					</div>
+				)}
+			</section>
+		</main>
+	)
 }
 
 export default App
