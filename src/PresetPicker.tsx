@@ -1,3 +1,10 @@
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select'
 import { usePreset } from '@/hooks/usePresets'
 
 function PresetPicker() {
@@ -5,13 +12,18 @@ function PresetPicker() {
 
 	return (
 		<div>
-			<select>
-				{presets.map((p) => (
-					<option value={p.id} key={p.id}>
-						{p.name}
-					</option>
-				))}
-			</select>
+			<Select>
+				<SelectTrigger className='w-[240px]'>
+					<SelectValue placeholder='Select a preset' />
+				</SelectTrigger>
+				<SelectContent>
+					{presets.map((p) => (
+						<SelectItem value={p.id} key={p.id}>
+							{p.name}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
 		</div>
 	)
 }

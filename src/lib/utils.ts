@@ -1,10 +1,16 @@
+import { type ClassValue, clsx } from 'clsx'
 import type { Input } from 'mediabunny'
+import { twMerge } from 'tailwind-merge'
 import {
 	AUDIO_BITRATE,
 	METADATA_FACTOR,
 	SAFETY_FACTOR,
 	TARGET_OUTPUT_BITS,
 } from '@/constants'
+
+export function cn(...inputs: ClassValue[]) {
+	return twMerge(clsx(inputs))
+}
 
 export function parseTimeToSeconds(time: string): number | undefined {
 	const trimmed = time.trim()

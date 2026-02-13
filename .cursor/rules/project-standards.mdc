@@ -1,0 +1,34 @@
+---
+description: Core project coding and validation standards for clipcat
+alwaysApply: true
+---
+
+# clipcat project standards
+
+Before finishing any code task, always run:
+
+```bash
+bunx tsc --noEmit
+bunx biome check --write .
+```
+
+Fix issues from both commands before considering work complete.
+
+## Do not
+
+- Skip type checking for quick fixes.
+- Leave Biome warnings or errors unresolved.
+- Commit changes that do not compile.
+- Use `any` unless there is explicit justification.
+
+## Code expectations
+
+- Prefer fully typed TypeScript.
+- Follow project style conventions (single quotes, no semicolons).
+- Match existing file structure and local patterns.
+
+## Project context
+
+- Product: browser-based local video compression for Discord sharing.
+- Primary stack: Bun, Vite, React, TypeScript, Tailwind CSS.
+- Important libraries: Mediabunny for video processing, Biome for linting/formatting.
