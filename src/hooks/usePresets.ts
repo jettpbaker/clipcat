@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DEFAULT_PRESETS } from '../constants'
+import { DEFAULT_PRESETS } from '@/constants'
 
 export type Preset = {
 	id: string

@@ -4,7 +4,7 @@ import {
 	METADATA_FACTOR,
 	SAFETY_FACTOR,
 	TARGET_OUTPUT_BITS,
-} from '../constants'
+} from '@/constants'
 
 export function parseTimeToSeconds(time: string): number | undefined {
 	const trimmed = time.trim()

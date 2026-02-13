@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { parseTimeToSeconds } from './lib/utils'
-import { compressVideo, type PassProgress } from './lib/video'
+import { parseTimeToSeconds } from '@/lib/utils'
+import { compressVideo, type PassProgress } from '@/lib/video'
 
-import PresetPicker from './PresetPicker'
+import PresetPicker from '@/PresetPicker'
 
 function App() {
 	const [startTime, setStartTime] = useState<string>('')

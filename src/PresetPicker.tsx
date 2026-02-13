@@ -1,4 +1,4 @@
-import { usePreset } from './hooks/usePresets'
+import { usePreset } from '@/hooks/usePresets'
 
 function PresetPicker() {
 	const { presets } = usePreset()
