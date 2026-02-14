@@ -1,8 +1,8 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { parseTimeToSeconds } from '@/lib/utils'
 import { compressVideo } from '@/lib/video'
-
 import PresetPicker from '@/preset-picker'
 import { Button } from './components/ui/button'
 import { Field, FieldLabel } from './components/ui/field'
@@ -48,20 +48,23 @@ function App() {
 		}
 
 		try {
-			const { url: compressedUrl, size, error } = await compressVideo(options)
-			if (error) return
+			const result = await compressVideo(options)
+			if (!result.ok) {
+				toast.error(result.reason, { position: 'bottom-right' })
+				return
+			}
 
 			if (url) URL.revokeObjectURL(url)
 
-			setUrl(compressedUrl)
-			setSize(size)
+			setUrl(result.url)
+			setSize(result.size)
 		} finally {
 			setIsConverting(false)
 		}
 	}
 
 	return (
-		<main className='h-screen w-screen'>
+		<>
 			<header>
 				<h1 className='text-6xl'>ClipCat</h1>
 			</header>
@@ -151,39 +154,7 @@ function App() {
 			<footer>
 				<p>ClipCat – Video Trimmer & Compressor</p>
 			</footer>
-
-			<div className='hidden'>
-				{isConverting && (
-					<div style={{ marginTop: '1rem' }}>
-						<div>
-							<span>Progress: {Math.round(passProgress * 100)}%</span>
-							<progress
-								value={passProgress}
-								max={1}
-								style={{ width: '200px', marginLeft: '0.5rem' }}
-							/>
-						</div>
-					</div>
-				)}
-
-				<section>
-					{size && (
-						<div>
-							<h2>Compressed Size:</h2>
-							<p>{size}</p>
-						</div>
-					)}
-
-					{url && (
-						<div>
-							<h2>Compressed Video:</h2>
-							{/* biome-ignore lint/a11y/useMediaCaption: Converted clips do not include caption tracks. */}
-							<video src={url} controls style={{ maxWidth: '66%' }} />
-						</div>
-					)}
-				</section>
-			</div>
-		</main>
+		</>
 	)
 }
 
