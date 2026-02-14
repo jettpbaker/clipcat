@@ -1,43 +1,39 @@
 import { useState } from 'react'
+import { Input } from '@/components/ui/input'
 import { parseTimeToSeconds } from '@/lib/utils'
-import { compressVideo, type PassProgress } from '@/lib/video'
+import { compressVideo } from '@/lib/video'
 
 import PresetPicker from '@/preset-picker'
+import { Button } from './components/ui/button'
+import { Field, FieldLabel } from './components/ui/field'
 import type { Preset } from './hooks/usePresets'
+import { usePreset } from './hooks/usePresets'
 
 function App() {
+	const { presets, defaultPreset } = usePreset()
+
 	const [startTime, setStartTime] = useState<string>('')
 	const [endTime, setEndTime] = useState<string>('')
 	const [file, setFile] = useState<File | null>(null)
 	const [url, setUrl] = useState<string | null>(null)
 	const [size, setSize] = useState<string | null>(null)
 	const [isConverting, setIsConverting] = useState(false)
-	const [pass1Progress, setPass1Progress] = useState(0)
-	const [pass2Progress, setPass2Progress] = useState(0)
-	const [currentPass, setCurrentPass] = useState<1 | 2>(1)
-	const [preset, setPreset] = useState<Preset>(null)
+	const [passProgress, setPassProgress] = useState(0)
+	const [preset, setPreset] = useState<Preset | null>(defaultPreset)
 
 	function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
 		const selectedFile = e.target.files?.[0] ?? null
 		setFile(selectedFile)
 	}
 
-	function handleProgress(progress: PassProgress) {
-		setCurrentPass(progress.pass)
-		if (progress.pass === 1) {
-			setPass1Progress(progress.progress)
-		} else {
-			setPass2Progress(progress.progress)
-		}
+	function handleProgress(progress: number) {
+		setPassProgress(progress)
 	}
 
 	async function handleConvert() {
 		if (!file) return
 
 		setIsConverting(true)
-		setPass1Progress(0)
-		setPass2Progress(0)
-		setCurrentPass(1)
 
 		const start = parseTimeToSeconds(startTime)
 		const end = parseTimeToSeconds(endTime)
@@ -52,7 +48,8 @@ function App() {
 		}
 
 		try {
-			const { url: compressedUrl, size } = await compressVideo(options)
+			const { url: compressedUrl, size, error } = await compressVideo(options)
+			if (error) return
 
 			if (url) URL.revokeObjectURL(url)
 
@@ -70,7 +67,85 @@ function App() {
 			</header>
 
 			<main>
-				<PresetPicker preset={preset} onPresetChange={setPreset} />
+				<PresetPicker
+					presets={presets}
+					preset={preset}
+					onPresetChange={setPreset}
+				/>
+
+				<label htmlFor='file-upload'>
+					Upload a file:
+					<Input
+						id='file-upload'
+						type='file'
+						accept='video/*'
+						onChange={handleFileChange}
+					/>
+				</label>
+
+				<div className='flex mt-4 gap-4'>
+					<Field className='w-2xs'>
+						<FieldLabel htmlFor='fieldgroup-in-point'>
+							Clip start time
+						</FieldLabel>
+						<Input
+							id='fieldgroup-in-point'
+							type='text'
+							placeholder='00:00'
+							onChange={(e) => setStartTime(e.target.value)}
+						/>
+					</Field>
+
+					<Field className='w-2xs'>
+						<FieldLabel htmlFor='fieldgroup-out-point'>
+							Clip end time
+						</FieldLabel>
+						<Input
+							id='fieldgroup-out-point'
+							type='text'
+							placeholder='00:00'
+							onChange={(e) => setEndTime(e.target.value)}
+						/>
+					</Field>
+				</div>
+
+				<Button
+					className='mt-4'
+					onClick={handleConvert}
+					disabled={!file || isConverting}
+				>
+					Convert
+				</Button>
+
+				{isConverting && (
+					<div className='mt-4'>
+						<div>
+							<span>Progress: {Math.round(passProgress * 100)}%</span>
+							<progress
+								value={passProgress}
+								max={1}
+								style={{ width: '200px', marginLeft: '0.5rem' }}
+							/>
+						</div>
+					</div>
+				)}
+
+				<section>
+					{size && (
+						<div>
+							<h2>Compressed Size:</h2>
+							<p>{size}</p>
+						</div>
+					)}
+
+					{url && (
+						<div>
+							<h2>Compressed Video:</h2>
+							{/* biome-ignore lint/a11y/useMediaCaption: Converted clips do not include caption tracks. */}
+							<video src={url} controls style={{ maxWidth: '66%' }} />
+						</div>
+					)}
+				</section>
 			</main>
 
 			<footer>
@@ -78,70 +153,15 @@ function App() {
 			</footer>
 
 			<div className='hidden'>
-				<h1>ClipCat</h1>
-
-				<br />
-
-				<PresetPicker />
-
-				<br />
-
-				<label>
-					Upload a file:
-					<input type='file' accept='video/*' onChange={handleFileChange} />
-				</label>
-
-				<br />
-
-				<label>
-					Start time (MM:SS):
-					<input
-						type='text'
-						placeholder='00:00'
-						value={startTime}
-						onChange={(e) => setStartTime(e.target.value)}
-					/>
-				</label>
-
-				<label>
-					End time (MM:SS):
-					<input
-						type='text'
-						placeholder='00:00'
-						value={endTime}
-						onChange={(e) => setEndTime(e.target.value)}
-					/>
-				</label>
-
-				<br />
-
-				<button
-					type='button'
-					onClick={handleConvert}
-					disabled={!file || isConverting}
-				>
-					Convert
-				</button>
-
 				{isConverting && (
 					<div style={{ marginTop: '1rem' }}>
 						<div>
-							<span>Pass 1 (Trim): {Math.round(pass1Progress * 100)}%</span>
+							<span>Progress: {Math.round(passProgress * 100)}%</span>
 							<progress
-								value={pass1Progress}
+								value={passProgress}
 								max={1}
 								style={{ width: '200px', marginLeft: '0.5rem' }}
 							/>
-							{currentPass === 1 && ' ⏳'}
-						</div>
-						<div style={{ marginTop: '0.5rem' }}>
-							<span>Pass 2 (Compress): {Math.round(pass2Progress * 100)}%</span>
-							<progress
-								value={pass2Progress}
-								max={1}
-								style={{ width: '200px', marginLeft: '0.5rem' }}
-							/>
-							{currentPass === 2 && ' ⏳'}
 						</div>
 					</div>
 				)}

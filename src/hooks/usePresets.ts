@@ -10,6 +10,7 @@ export type Preset = {
 	framerate: '30' | '60' | 'original'
 	isCustom: boolean
 	isDefault: boolean
+	isDeleted: boolean
 }
 
 function loadPresetsFromStorage() {
@@ -18,7 +19,15 @@ function loadPresetsFromStorage() {
 		presets = JSON.stringify(DEFAULT_PRESETS)
 		localStorage.setItem('presets', presets)
 	}
-	return JSON.parse(presets)
+	const stored = JSON.parse(presets)
+	const merged = [
+		...stored,
+		...DEFAULT_PRESETS.filter(
+			(d) => !stored.some((s: Preset) => s.id === d.id)
+		),
+	]
+	localStorage.setItem('presets', JSON.stringify(merged))
+	return merged
 }
 
 function savePresetsToStorage(presets: Preset[]) {
@@ -35,22 +44,35 @@ export function usePreset() {
 	}
 
 	function deletePreset(id: string) {
-		const updated = presets.filter((p) => p.id !== id)
-		savePresetsToStorage(updated)
-		setPresets(updated)
+		const exists = presets.some((p) => p.id === id)
+		if (!exists) return
+
+		const deleted = presets.map((p) => {
+			if (id === p.id) return { ...p, isDeleted: true }
+			return p
+		})
+		savePresetsToStorage(deleted)
+		setPresets(deleted)
 	}
 
 	function setPresetAsDefault(id: string) {
 		const exists = presets.some((p) => p.id === id)
 		if (!exists) return
+		const canSet = presets.some((p) => p.id === id && !p.isDeleted)
+		if (!canSet) {
+			console.warn('Trying to set a deleted preset as default!')
+			return
+		}
 
-		const updated = presets.map((p) => ({
-			...p,
-			isDefault: p.id === id,
-		}))
+		const updated = presets.map((p) => {
+			if (p.isDeleted) return p
+			return { ...p, isDefault: p.id === id }
+		})
 		savePresetsToStorage(updated)
 		setPresets(updated)
 	}
 
-	return { presets, addPreset, deletePreset, setPresetAsDefault }
+	const defaultPreset = presets.find((p) => p.isDefault && !p.isDeleted) ?? null
+
+	return { presets, defaultPreset, addPreset, deletePreset, setPresetAsDefault }
 }
