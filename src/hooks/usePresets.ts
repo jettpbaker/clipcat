@@ -6,7 +6,7 @@ export type Preset = {
 	name: string
 	description?: string
 	targetSize: number // MB
-	resolution: '720p' | '1080p' | '1440p' | 'original'
+	resolution: '720' | '1920' | '1440' | 'original'
 	framerate: '30' | '60' | 'original'
 	isCustom: boolean
 	isDefault: boolean
@@ -72,7 +72,19 @@ export function usePreset() {
 		setPresets(updated)
 	}
 
+	function resetPresets() {
+		localStorage.setItem('presets', '')
+		setPresets(loadPresetsFromStorage)
+	}
+
 	const defaultPreset = presets.find((p) => p.isDefault && !p.isDeleted) ?? null
 
-	return { presets, defaultPreset, addPreset, deletePreset, setPresetAsDefault }
+	return {
+		presets,
+		defaultPreset,
+		addPreset,
+		deletePreset,
+		setPresetAsDefault,
+		resetPresets,
+	}
 }

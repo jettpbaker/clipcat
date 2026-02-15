@@ -13,7 +13,7 @@ export const DEFAULT_PRESETS: Preset[] = [
 		description:
 			"Preset optimised for getting clip size under Discord's free 10MB limit",
 		targetSize: 10,
-		resolution: '1080p',
+		resolution: '1920',
 		framerate: '30',
 		isCustom: false,
 		isDefault: false,
@@ -37,7 +37,7 @@ export const DEFAULT_PRESETS: Preset[] = [
 		description:
 			"Preset optimised for getting clip size under Discord Nitro Basic's 50MB limit",
 		targetSize: 50,
-		resolution: '1080p',
+		resolution: '1920',
 		framerate: '60',
 		isCustom: false,
 		isDefault: false,

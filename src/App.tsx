@@ -10,7 +10,7 @@ import type { Preset } from './hooks/usePresets'
 import { usePreset } from './hooks/usePresets'
 
 function App() {
-	const { presets, defaultPreset } = usePreset()
+	const { presets, defaultPreset, resetPresets } = usePreset()
 
 	const [startTime, setStartTime] = useState<string>('')
 	const [endTime, setEndTime] = useState<string>('')
@@ -38,7 +38,13 @@ function App() {
 		const start = parseTimeToSeconds(startTime)
 		const end = parseTimeToSeconds(endTime)
 
+		if (!preset) {
+			toast.warning('No preset selected', { position: 'bottom-right' })
+			return
+		}
+
 		const options = {
+			preset,
 			file,
 			trim: {
 				start,
@@ -119,6 +125,8 @@ function App() {
 				>
 					Convert
 				</Button>
+
+				<Button onClick={resetPresets}>Reset Presets</Button>
 
 				{isConverting && (
 					<div className='mt-4'>

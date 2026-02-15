@@ -8,9 +8,11 @@ import {
 	Output,
 } from 'mediabunny'
 import { AUDIO_BITRATE } from '@/constants'
+import type { Preset } from '@/hooks/usePresets'
 import { calculateBitrate, formatBytes } from '@/lib/utils'
 
 export type CompressVideoOptions = {
+	preset: Preset
 	file: File
 	trim: { start?: number; end?: number }
 	onProgress: (progress: number) => void
@@ -28,13 +30,8 @@ export async function compressVideo(
 		source: new BlobSource(options.file),
 	})
 	try {
-		const {
-			originalFrameRate,
-			originalWidth,
-			trimStart,
-			trimEnd,
-			videoBitrate,
-		} = await getConversionMetadata(input, options)
+		const { frameRate, width, trimStart, trimEnd, videoBitrate } =
+			await getConversionMetadata(input, options)
 
 		const output = new Output({
 			format: new Mp4OutputFormat(),
@@ -45,9 +42,9 @@ export async function compressVideo(
 			input,
 			output,
 			video: {
-				width: originalWidth,
+				width: width,
 				bitrate: videoBitrate,
-				frameRate: originalFrameRate,
+				frameRate: frameRate,
 			},
 			audio: {
 				numberOfChannels: 1,
@@ -98,9 +95,24 @@ async function getConversionMetadata(
 	if (!videoTrack) throw new Error('No video track found')
 
 	const packetStats = await videoTrack.computePacketStats(100)
-	const originalFrameRate = Math.round(packetStats.averagePacketRate)
 
-	const originalWidth = videoTrack.displayWidth
+	const presetFrameRate = options.preset.framerate
+	let frameRate: number
+	if (presetFrameRate === 'original') {
+		frameRate = Math.round(packetStats.averagePacketRate)
+	} else {
+		frameRate = Number(presetFrameRate)
+	}
+
+	const presetResolution = options.preset.resolution
+	console.log({ presetResolution })
+	let width: number
+	if (presetResolution === 'original') {
+		width = videoTrack.displayWidth
+	} else {
+		width = Number(presetResolution)
+		console.log({ width })
+	}
 
 	const inputDuration = await input.computeDuration()
 	const trimStart = options.trim.start ?? 0
@@ -109,5 +121,5 @@ async function getConversionMetadata(
 
 	const videoBitrate = calculateBitrate(trimmedDuration || inputDuration)
 
-	return { originalFrameRate, originalWidth, trimStart, trimEnd, videoBitrate }
+	return { frameRate, width, trimStart, trimEnd, videoBitrate }
 }
