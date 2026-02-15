@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { parseTimeToSeconds } from '@/lib/utils'
 import { compressVideo } from '@/lib/video'
 import PresetPicker from '@/preset-picker'
+import Header from './components/header'
 import { Button } from './components/ui/button'
 import { Field, FieldLabel } from './components/ui/field'
 import type { Preset } from './hooks/usePresets'
@@ -71,11 +72,16 @@ function App() {
 
 	return (
 		<>
-			<header>
-				<h1 className='text-6xl'>ClipCat</h1>
-			</header>
+			<Header />
 
 			<main>
+				<div className='p-8 flex justify-center'>
+					<h1 className='text-6xl text-black text-center'>
+						Trim & compress, <br />
+						<span className='text-primary'>purrfectly</span> sized
+					</h1>
+				</div>
+
 				<PresetPicker
 					presets={presets}
 					preset={preset}
