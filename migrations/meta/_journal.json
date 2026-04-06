@@ -15,6 +15,13 @@
       "when": 1775455886107,
       "tag": "0001_cynical_patch",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1775457015333,
+      "tag": "0002_kind_magma",
+      "breakpoints": true
     }
   ]
 }
