@@ -1,0 +1,1 @@
+ALTER TABLE "clips" RENAME COLUMN "user_id" TO "owner_id";
