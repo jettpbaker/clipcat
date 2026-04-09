@@ -1,6 +1,6 @@
 import processVideo from '@/lib/processVideo'
 import r2 from '@/lib/r2'
-import processSchema from '@/lib/schemas'
+import { processSchema } from '@/lib/schemas'
 import { z } from 'zod'
 import { ffmpeg } from 'ffmpeg-kit'
 import tryCatch from '@/lib/tryCatch'
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if (!parsed.success)
     return Response.json({ error: z.flattenError(parsed.error) }, { status: 400 })
 
-  const { key, start, end, game } = parsed.data
+  const { key, start, end } = parsed.data
 
   const url = r2.presign(key, { expiresIn: ONE_HOUR })
   console.log('Processing video...')

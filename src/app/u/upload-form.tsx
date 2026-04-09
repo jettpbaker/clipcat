@@ -1,18 +1,17 @@
 'use client'
 
 import ky from 'ky'
-import type { User } from 'better-auth'
 
 import tryCatch from '@/lib/tryCatch'
-import processSchema from '@/lib/schemas'
+import {
+  abortUploadSchema,
+  completeUploadSchema,
+  partUploadSchema,
+  processSchema,
+  startUploadSchema,
+} from '@/lib/schemas'
 
-import { getUploadUrl } from './actions'
-
-type UploadFormProps = {
-  user: User
-}
-
-export default function UploadForm({ user }: UploadFormProps) {
+export default function UploadForm() {
   async function handleSumbit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
 
@@ -25,24 +24,118 @@ export default function UploadForm({ user }: UploadFormProps) {
     }
 
     const ext = file.name.split('.').pop()
-    const key = `originals/${user.id}/${crypto.randomUUID()}.${ext}`
+    const key = `originals/${crypto.randomUUID()}.${ext}`
 
-    const url = await getUploadUrl(key, file.type)
+    const startUploadBody = { key, fileType: file.type }
+    const startUploadBodyParsed = startUploadSchema.safeParse(startUploadBody)
 
-    // TODO: Get progress from the upload
-    const [uploadErr] = await tryCatch(
-      ky.put(url, {
-        // TODO: Decide on a proper timeout for this
-        timeout: false,
-        body: file,
-        headers: { 'Content-Type': file.type },
-      }),
-    )
-
-    if (uploadErr) {
-      console.error('Upload failed', uploadErr)
+    if (!startUploadBodyParsed.success) {
+      console.error('Upload failed', startUploadBodyParsed.error)
       return
     }
+
+    const [startUploadErr, startUploadData] = await tryCatch(
+      ky
+        .post('/api/uploads/start', {
+          json: startUploadBodyParsed.data,
+        })
+        .json<{ uploadId: string; key: string }>(),
+    )
+
+    if (startUploadErr) {
+      console.error('Upload failed', startUploadErr)
+      return
+    }
+
+    const { uploadId } = startUploadData
+
+    try {
+      const partSize = 10 * 1024 * 1024 // 10 MiB
+      const partCount = Math.ceil(file.size / partSize)
+
+      const parts: Array<{ ETag: string; PartNumber: number }> = []
+
+      for (let i = 0; i < partCount; i++) {
+        const partNumber = i + 1
+        const start = i * partSize
+        const end = Math.min(start + partSize, file.size)
+        const chunk = file.slice(start, end)
+
+        const partUploadBody = { key, uploadId, partNumber }
+        const partUploadBodyParsed = partUploadSchema.safeParse(partUploadBody)
+
+        if (!partUploadBodyParsed.success) {
+          throw partUploadBodyParsed.error
+        }
+
+        const [partUploadErr, partUploadData] = await tryCatch(
+          ky
+            .post('/api/uploads/part', {
+              json: partUploadBodyParsed.data,
+            })
+            .json<{ url: string }>(),
+        )
+
+        if (partUploadErr) {
+          throw partUploadErr
+        }
+
+        const response = await fetch(partUploadData.url, {
+          method: 'PUT',
+          body: chunk,
+        })
+
+        if (!response.ok)
+          throw new Error(`Part ${partNumber} upload failed with ${response.status}`)
+
+        const etag = response.headers.get('etag')
+        console.log(response)
+        if (!etag) throw new Error(`Missing ETag for part ${partNumber}`)
+
+        parts.push({ ETag: etag, PartNumber: partNumber })
+
+        const uploadedBytes = end
+        const progress = uploadedBytes / file.size
+        console.log(progress)
+      }
+
+      parts.sort((a, b) => a.PartNumber - b.PartNumber)
+      console.log({ parts })
+
+      const completeUploadBody = { key, uploadId, parts }
+      const completeUploadBodyParsed = completeUploadSchema.safeParse(completeUploadBody)
+
+      if (!completeUploadBodyParsed.success) {
+        throw completeUploadBodyParsed.error
+      }
+
+      const [completeUploadErr] = await tryCatch(
+        ky.post('/api/uploads/complete', {
+          json: completeUploadBodyParsed.data,
+        }),
+      )
+
+      if (completeUploadErr) throw completeUploadErr
+    } catch (err) {
+      const abortUploadBody = { key, uploadId }
+      const abortUploadBodyParsed = abortUploadSchema.safeParse(abortUploadBody)
+
+      if (abortUploadBodyParsed.success) {
+        const [abortUploadErr] = await tryCatch(
+          ky.post('/api/uploads/abort', {
+            json: abortUploadBodyParsed.data,
+          }),
+        )
+
+        if (abortUploadErr) {
+          console.error('Upload abort failed', abortUploadErr)
+        }
+      }
+
+      console.error('Upload failed', err)
+      return
+    }
+    return
 
     function formatTime(t: string) {
       const time = t.split(':')
@@ -61,8 +154,8 @@ export default function UploadForm({ user }: UploadFormProps) {
       return
     }
 
-    const startSeconds = formatTime(start)
-    const endSeconds = formatTime(end)
+    const startSeconds = formatTime(String(start))
+    const endSeconds = formatTime(String(end))
 
     const game = formData.get('game')
     if (typeof game !== 'string') {
@@ -70,11 +163,11 @@ export default function UploadForm({ user }: UploadFormProps) {
       return
     }
 
-    const body = { key, start: startSeconds, end: endSeconds, game }
-    const parsed = processSchema.safeParse(body)
+    const startProcessingBody = { key, start: startSeconds, end: endSeconds, game }
+    const startProcessingBodyParsed = processSchema.safeParse(startProcessingBody)
 
-    if (!parsed.success) {
-      console.error('Upload failed', parsed.error)
+    if (!startProcessingBodyParsed.success) {
+      console.error('Upload failed', startProcessingBodyParsed.error)
       return
     }
 
@@ -83,7 +176,7 @@ export default function UploadForm({ user }: UploadFormProps) {
         .post('/api/process', {
           // TODO: Decide on a proper timeout for this
           timeout: false,
-          json: parsed.data,
+          json: startProcessingBodyParsed.data,
         })
         .json(),
     )

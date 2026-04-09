@@ -15,7 +15,7 @@ export default async function Upload() {
   return (
     <div>
       <h1>Upload</h1>
-      <UploadForm user={session.user} />
+      <UploadForm />
     </div>
   )
 }
