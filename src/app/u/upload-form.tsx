@@ -3,13 +3,8 @@
 import ky from 'ky'
 
 import tryCatch from '@/lib/tryCatch'
-import {
-  abortUploadSchema,
-  completeUploadSchema,
-  partUploadSchema,
-  processSchema,
-  startUploadSchema,
-} from '@/lib/schemas'
+import { processSchema } from '@/lib/schemas'
+import { uploadMultipartVideo } from '@/lib/upload/multipartVideo'
 
 export default function UploadForm() {
   async function handleSumbit(e: React.SubmitEvent<HTMLFormElement>) {
@@ -26,115 +21,15 @@ export default function UploadForm() {
     const ext = file.name.split('.').pop()
     const key = `originals/${crypto.randomUUID()}.${ext}`
 
-    const startUploadBody = { key, fileType: file.type }
-    const startUploadBodyParsed = startUploadSchema.safeParse(startUploadBody)
-
-    if (!startUploadBodyParsed.success) {
-      console.error('Upload failed', startUploadBodyParsed.error)
-      return
+    function handleUploadProgress({ progress }: { progress: number }) {
+      const percentage = progress * 100
+      console.log(`Upload Progress: ${Math.floor(percentage)}%`)
     }
 
-    const [startUploadErr, startUploadData] = await tryCatch(
-      ky
-        .post('/api/uploads/start', {
-          json: startUploadBodyParsed.data,
-        })
-        .json<{ uploadId: string; key: string }>(),
-    )
+    console.time('upload-video')
+    await uploadMultipartVideo(file, { key, onUploadProgress: handleUploadProgress })
+    console.timeEnd('upload-video')
 
-    if (startUploadErr) {
-      console.error('Upload failed', startUploadErr)
-      return
-    }
-
-    const { uploadId } = startUploadData
-
-    try {
-      const partSize = 10 * 1024 * 1024 // 10 MiB
-      const partCount = Math.ceil(file.size / partSize)
-
-      const parts: Array<{ ETag: string; PartNumber: number }> = []
-
-      for (let i = 0; i < partCount; i++) {
-        const partNumber = i + 1
-        const start = i * partSize
-        const end = Math.min(start + partSize, file.size)
-        const chunk = file.slice(start, end)
-
-        const partUploadBody = { key, uploadId, partNumber }
-        const partUploadBodyParsed = partUploadSchema.safeParse(partUploadBody)
-
-        if (!partUploadBodyParsed.success) {
-          throw partUploadBodyParsed.error
-        }
-
-        const [partUploadErr, partUploadData] = await tryCatch(
-          ky
-            .post('/api/uploads/part', {
-              json: partUploadBodyParsed.data,
-            })
-            .json<{ url: string }>(),
-        )
-
-        if (partUploadErr) {
-          throw partUploadErr
-        }
-
-        const response = await fetch(partUploadData.url, {
-          method: 'PUT',
-          body: chunk,
-        })
-
-        if (!response.ok)
-          throw new Error(`Part ${partNumber} upload failed with ${response.status}`)
-
-        const etag = response.headers.get('etag')
-        console.log(response)
-        if (!etag) throw new Error(`Missing ETag for part ${partNumber}`)
-
-        parts.push({ ETag: etag, PartNumber: partNumber })
-
-        const uploadedBytes = end
-        const progress = uploadedBytes / file.size
-        console.log(progress)
-      }
-
-      parts.sort((a, b) => a.PartNumber - b.PartNumber)
-      console.log({ parts })
-
-      const completeUploadBody = { key, uploadId, parts }
-      const completeUploadBodyParsed = completeUploadSchema.safeParse(completeUploadBody)
-
-      if (!completeUploadBodyParsed.success) {
-        throw completeUploadBodyParsed.error
-      }
-
-      const [completeUploadErr] = await tryCatch(
-        ky.post('/api/uploads/complete', {
-          json: completeUploadBodyParsed.data,
-        }),
-      )
-
-      if (completeUploadErr) throw completeUploadErr
-    } catch (err) {
-      const abortUploadBody = { key, uploadId }
-      const abortUploadBodyParsed = abortUploadSchema.safeParse(abortUploadBody)
-
-      if (abortUploadBodyParsed.success) {
-        const [abortUploadErr] = await tryCatch(
-          ky.post('/api/uploads/abort', {
-            json: abortUploadBodyParsed.data,
-          }),
-        )
-
-        if (abortUploadErr) {
-          console.error('Upload abort failed', abortUploadErr)
-        }
-      }
-
-      console.error('Upload failed', err)
-      return
-    }
     return
 
     function formatTime(t: string) {
