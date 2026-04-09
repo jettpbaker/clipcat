@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   if (!parsed.success)
     return Response.json({ error: z.flattenError(parsed.error) }, { status: 400 })
 
-  const { key, start, end } = parsed.data
+  const { key, duration } = parsed.data
 
   const url = r2.presign(key, { expiresIn: ONE_HOUR })
   console.log('Processing video...')
@@ -24,14 +24,13 @@ export async function POST(request: Request) {
     err: processErr,
     data: processData,
     outputPath,
-  } = await processVideo({ input: url, options: { start, end } })
-  console.log('Processing finished!')
+  } = await processVideo({ input: url, duration })
   console.timeEnd('processing')
 
   const file = Bun.file(outputPath)
   const probe = await ffmpeg.probe(outputPath)
-  const { size, duration, filename } = probe.format
-  console.log({ size, duration, filename })
+  const { size, duration: outputDuration, filename } = probe.format
+  console.log({ size, outputDuration, filename })
 
   if (processErr) {
     // Handle Err
@@ -39,11 +38,14 @@ export async function POST(request: Request) {
     return
   }
 
+  console.log('Uploading clip...')
+  console.time('uploading')
   const [uploadErr] = await tryCatch(
     r2.write(`clips/${crypto.randomUUID()}.mp4`, file, {
       type: 'video/mp4',
     }),
   )
+  console.timeEnd('uploading')
 
   if (file) await file.delete()
 
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
   }
 
   // const ownerId = 'some bs'
-  // const createdClip = await MUTATIONS.createClip({game, duration, ownerId, , })
+  // const createdClip = await MUTATIONS.createClip({game, outputDuration, ownerId, , })
 
   return Response.json({ data: processData })
 }

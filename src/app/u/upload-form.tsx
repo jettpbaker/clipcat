@@ -5,6 +5,7 @@ import ky from 'ky'
 import tryCatch from '@/lib/tryCatch'
 import { processSchema } from '@/lib/schemas'
 import { uploadMultipartVideo } from '@/lib/upload/multipartVideo'
+import trimVideo from '@/lib/trimVideo'
 
 export default function UploadForm() {
   async function handleSumbit(e: React.SubmitEvent<HTMLFormElement>) {
@@ -26,12 +27,6 @@ export default function UploadForm() {
       console.log(`Upload Progress: ${Math.floor(percentage)}%`)
     }
 
-    console.time('upload-video')
-    await uploadMultipartVideo(file, { key, onUploadProgress: handleUploadProgress })
-    console.timeEnd('upload-video')
-
-    return
-
     function formatTime(t: string) {
       const time = t.split(':')
 
@@ -44,13 +39,19 @@ export default function UploadForm() {
     const start = formData.get('start')
     const end = formData.get('end')
 
+    const startSeconds = formatTime(String(start))
+    const endSeconds = formatTime(String(end))
+    const duration = endSeconds - startSeconds
+
+    console.time('upload-video')
+    const trimmed = await trimVideo(file, startSeconds, endSeconds)
+    await uploadMultipartVideo(trimmed, { key, onUploadProgress: handleUploadProgress })
+    console.timeEnd('upload-video')
+
     if (typeof start !== 'string' || typeof end !== 'string') {
       console.error('Start or end time not provided')
       return
     }
-
-    const startSeconds = formatTime(String(start))
-    const endSeconds = formatTime(String(end))
 
     const game = formData.get('game')
     if (typeof game !== 'string') {
@@ -58,7 +59,7 @@ export default function UploadForm() {
       return
     }
 
-    const startProcessingBody = { key, start: startSeconds, end: endSeconds, game }
+    const startProcessingBody = { key, duration, game }
     const startProcessingBodyParsed = processSchema.safeParse(startProcessingBody)
 
     if (!startProcessingBodyParsed.success) {

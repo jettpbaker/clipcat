@@ -2,8 +2,7 @@ import { z } from 'zod'
 
 export const processSchema = z.object({
   key: z.string().min(1),
-  start: z.coerce.number().nonnegative(),
-  end: z.coerce.number().positive(),
+  duration: z.coerce.number().positive(),
   game: z.string().min(1),
 })
 

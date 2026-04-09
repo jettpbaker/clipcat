@@ -1,7 +1,7 @@
 import ky from 'ky'
 
 const DEFAULT_PART_SIZE = 10 * 1024 * 1024
-const DEFAULT_CONCURRENCY_SIZE = 3
+const DEFAULT_CONCURRENCY_SIZE = 4
 
 type StartMultiPartUploadResult = {
   uploadId: string
