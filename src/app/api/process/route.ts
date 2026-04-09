@@ -6,8 +6,6 @@ import { ffmpeg } from 'ffmpeg-kit'
 import tryCatch from '@/lib/tryCatch'
 // import { MUTATIONS } from '@/db/queries'
 
-const ONE_HOUR = 3600
-
 export async function POST(request: Request) {
   const body = await request.json()
 
@@ -17,14 +15,13 @@ export async function POST(request: Request) {
 
   const { key, duration } = parsed.data
 
-  const url = r2.presign(key, { expiresIn: ONE_HOUR })
   console.log('Processing video...')
   console.time('processing')
   const {
     err: processErr,
     data: processData,
     outputPath,
-  } = await processVideo({ input: url, duration })
+  } = await processVideo({ key, duration })
   console.timeEnd('processing')
 
   const file = Bun.file(outputPath)
