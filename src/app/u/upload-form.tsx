@@ -43,8 +43,12 @@ export default function UploadForm() {
     const endSeconds = formatTime(String(end))
     const duration = endSeconds - startSeconds
 
-    console.time('upload-video')
+    console.time('trim-video')
     const trimmed = await trimVideo(file, startSeconds, endSeconds)
+    console.timeEnd('trim-video')
+    // return
+
+    console.time('upload-video')
     await uploadMultipartVideo(trimmed, { key, onUploadProgress: handleUploadProgress })
     console.timeEnd('upload-video')
 
