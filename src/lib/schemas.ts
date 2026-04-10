@@ -1,9 +1,8 @@
 import { z } from 'zod'
 
 export const processSchema = z.object({
-  key: z.string().min(1),
+  inputKey: z.string().min(1),
   duration: z.coerce.number().positive(),
-  game: z.string().min(1),
 })
 
 export const startUploadSchema = z.object({

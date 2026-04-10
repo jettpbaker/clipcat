@@ -20,7 +20,7 @@ export default function UploadForm() {
     }
 
     const ext = file.name.split('.').pop()
-    const key = `originals/${crypto.randomUUID()}.${ext}`
+    const inputKey = `originals/${crypto.randomUUID()}.${ext}`
 
     function handleUploadProgress({ progress }: { progress: number }) {
       const percentage = progress * 100
@@ -49,7 +49,7 @@ export default function UploadForm() {
     // return
 
     console.time('upload-video')
-    await uploadMultipartVideo(trimmed, { key, onUploadProgress: handleUploadProgress })
+    await uploadMultipartVideo(trimmed, { key: inputKey, onUploadProgress: handleUploadProgress })
     console.timeEnd('upload-video')
 
     if (typeof start !== 'string' || typeof end !== 'string') {
@@ -63,7 +63,7 @@ export default function UploadForm() {
       return
     }
 
-    const startProcessingBody = { key, duration, game }
+    const startProcessingBody = { inputKey, duration, game }
     const startProcessingBodyParsed = processSchema.safeParse(startProcessingBody)
 
     if (!startProcessingBodyParsed.success) {

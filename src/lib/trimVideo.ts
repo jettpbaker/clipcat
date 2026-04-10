@@ -6,6 +6,7 @@ import {
   Conversion,
   ALL_FORMATS,
   BlobSource,
+  QUALITY_HIGH,
 } from 'mediabunny'
 
 export default async function trimVideo(video: File, start: number, end: number) {
@@ -22,6 +23,11 @@ export default async function trimVideo(video: File, start: number, end: number)
   const conversion = await Conversion.init({
     input,
     output,
+    video: {
+      codec: 'avc',
+      hardwareAcceleration: 'prefer-hardware',
+      bitrate: QUALITY_HIGH,
+    },
     trim: {
       start,
       end,
