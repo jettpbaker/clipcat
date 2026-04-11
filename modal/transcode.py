@@ -3,13 +3,23 @@ import modal
 app = modal.App("clipcat-transcode")
 
 r2_secret = modal.Secret.from_name("clipcat-r2")
-image = modal.Image.debian_slim().apt_install("ffmpeg").pip_install("boto3")
+image = (
+    modal.Image.from_registry("nvidia/cuda:12.4.1-runtime-ubuntu22.04", add_python="3.11")
+    .entrypoint([])
+    .apt_install("ffmpeg")
+    .pip_install("boto3")
+)
 
 TARGET_SIZE_MB = 10
-TARGET_SIZE_HEADROOM = 0.85
+TARGET_SIZE_HEADROOM = 0.9
 AUDIO_BITRATE_KBPS = 128
 
-@app.function(image=image, secrets=[r2_secret])
+@app.function(
+    image=image,
+    secrets=[r2_secret],
+    gpu="L40S",
+    region=["au", "ap"],
+)
 def compress(input_key: str, output_key: str, duration: float):
     import os
     from pathlib import Path
@@ -17,6 +27,7 @@ def compress(input_key: str, output_key: str, duration: float):
     import time
     import uuid
     import boto3
+    from boto3.s3.transfer import TransferConfig
 
     total_started_at = time.perf_counter()
     effective_target_size_mb = TARGET_SIZE_MB * TARGET_SIZE_HEADROOM
@@ -35,17 +46,22 @@ def compress(input_key: str, output_key: str, duration: float):
         aws_secret_access_key=secret_access_key,
         region_name="auto",
     )
+    transfer_config = TransferConfig(
+        multipart_threshold=8 * 1024 * 1024,
+        multipart_chunksize=8 * 1024 * 1024,
+        max_concurrency=20,
+        use_threads=True,
+    )
 
     input_path = Path("/tmp") / f"clipcat-input-{uuid.uuid4()}.mp4"
     output_path = Path("/tmp") / f"clipcat-{uuid.uuid4()}.mp4"
-    passlog_path = Path("/tmp") / f"clipcat-passlog-{uuid.uuid4()}"
 
     try:
         download_started_at = time.perf_counter()
-        s3.download_file(bucket_name, input_key, str(input_path))
+        s3.download_file(bucket_name, input_key, str(input_path), Config=transfer_config)
         download_seconds = time.perf_counter() - download_started_at
 
-        common_video_args = [
+        encode_args = [
             "ffmpeg",
             "-y",
             "-i",
@@ -53,31 +69,19 @@ def compress(input_key: str, output_key: str, duration: float):
             "-vf",
             "scale=w=min(1920\\,iw):h=min(1080\\,ih):force_original_aspect_ratio=decrease",
             "-c:v",
-            "libx264",
+            "h264_nvenc",
+            "-preset",
+            "p3",
+            "-rc",
+            "vbr",
             "-b:v",
             f"{video_bitrate_kbps}k",
+            "-maxrate",
+            f"{video_bitrate_kbps}k",
+            "-bufsize",
+            f"{video_bitrate_kbps * 2}k",
             "-pix_fmt",
             "yuv420p",
-        ]
-
-        pass1_args = [
-            *common_video_args,
-            "-pass",
-            "1",
-            "-passlogfile",
-            str(passlog_path),
-            "-an",
-            "-f",
-            "null",
-            "/dev/null",
-        ]
-
-        pass2_args = [
-            *common_video_args,
-            "-pass",
-            "2",
-            "-passlogfile",
-            str(passlog_path),
             "-c:a",
             "aac",
             "-b:a",
@@ -89,9 +93,7 @@ def compress(input_key: str, output_key: str, duration: float):
 
         print("starting compression", {"input_key": input_key, "output_key": output_key})
         compression_started_at = time.perf_counter()
-        subprocess.run(pass1_args, check=True, capture_output=True, text=True)
-
-        subprocess.run(pass2_args, check=True, capture_output=True, text=True)
+        subprocess.run(encode_args, check=True, capture_output=True, text=True)
         compression_seconds = time.perf_counter() - compression_started_at
 
         upload_started_at = time.perf_counter()
@@ -99,6 +101,7 @@ def compress(input_key: str, output_key: str, duration: float):
             str(output_path),
             bucket_name,
             output_key,
+            Config=transfer_config,
             ExtraArgs={"ContentType": "video/mp4"},
         )
         upload_seconds = time.perf_counter() - upload_started_at
@@ -114,6 +117,7 @@ def compress(input_key: str, output_key: str, duration: float):
                 "compression_seconds": round(compression_seconds, 2),
                 "upload_seconds": round(upload_seconds, 2),
                 "total_seconds": round(total_seconds, 2),
+                "modal_region": os.environ.get("MODAL_REGION"),
             },
         )
 
@@ -149,12 +153,7 @@ def compress(input_key: str, output_key: str, duration: float):
             },
         }
     finally:
-        for path in [
-            input_path,
-            output_path,
-            Path(f"{passlog_path}-0.log"),
-            Path(f"{passlog_path}-0.log.mbtree"),
-        ]:
+        for path in [input_path, output_path]:
             path.unlink(missing_ok=True)
 
 @app.local_entrypoint()

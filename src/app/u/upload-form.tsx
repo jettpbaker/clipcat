@@ -19,8 +19,7 @@ export default function UploadForm() {
       return
     }
 
-    const ext = file.name.split('.').pop()
-    const inputKey = `originals/${crypto.randomUUID()}.${ext}`
+    const inputKey = `originals/${crypto.randomUUID()}.mp4`
 
     function handleUploadProgress({ progress }: { progress: number }) {
       const percentage = progress * 100
@@ -46,7 +45,6 @@ export default function UploadForm() {
     console.time('trim-video')
     const trimmed = await trimVideo(file, startSeconds, endSeconds)
     console.timeEnd('trim-video')
-    // return
 
     console.time('upload-video')
     await uploadMultipartVideo(trimmed, { key: inputKey, onUploadProgress: handleUploadProgress })
