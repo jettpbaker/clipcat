@@ -7,7 +7,12 @@ import { processSchema } from '@/lib/schemas'
 import { uploadMultipartVideo } from '@/lib/upload/multipartVideo'
 import trimVideo from '@/lib/trimVideo'
 
+import { useState } from 'react'
+
 export default function UploadForm() {
+  const [clipUrl, setClipUrl] = useState<null | string>(null)
+  const [progress, setProgress] = useState<number>(0)
+
   async function handleSumbit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
 
@@ -22,8 +27,8 @@ export default function UploadForm() {
     const inputKey = `originals/${crypto.randomUUID()}.mp4`
 
     function handleUploadProgress({ progress }: { progress: number }) {
-      const percentage = progress * 100
-      console.log(`Upload Progress: ${Math.floor(percentage)}%`)
+      const percentage = Math.floor(progress * 100)
+      setProgress(percentage)
     }
 
     function formatTime(t: string) {
@@ -69,15 +74,27 @@ export default function UploadForm() {
       return
     }
 
-    const [processingErr] = await tryCatch(
+    const [processingErr, processingData] = await tryCatch(
       ky
         .post('/api/process', {
           // TODO: Decide on a proper timeout for this
           timeout: false,
           json: startProcessingBodyParsed.data,
         })
-        .json(),
+        .json<{
+          data: {
+            inputKey: string
+            outputKey: string
+            duration: number
+            outputSize: number
+            videoBitrateKbps: number
+          }
+          clipUrl: string
+        }>(),
     )
+
+    if (!processingData) throw new Error('Missing processing data')
+    setClipUrl(processingData.clipUrl)
 
     if (processingErr) {
       console.error('Processing failed', processingErr)
@@ -86,12 +103,24 @@ export default function UploadForm() {
   }
 
   return (
-    <form onSubmit={(e) => handleSumbit(e)}>
-      <input type="file" name="file" />
-      <input type="text" name="start" placeholder="Start: 00:00" />
-      <input type="text" name="end" placeholder="End: 00:00" />
-      <input type="game" name="game" placeholder="Clip Game" />
-      <button type="submit">Upload</button>
-    </form>
+    <>
+      <form onSubmit={(e) => handleSumbit(e)}>
+        <input type="file" name="file" />
+        <input type="text" name="start" placeholder="Start: 00:00" />
+        <input type="text" name="end" placeholder="End: 00:00" />
+        <input type="text" name="game" placeholder="Clip Game" />
+        <button type="submit">Upload</button>
+      </form>
+
+      <p>Upload progress: {progress}%</p>
+
+      <br />
+
+      {clipUrl && (
+        <div>
+          <video src={clipUrl} controls />
+        </div>
+      )}
+    </>
   )
 }

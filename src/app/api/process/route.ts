@@ -1,6 +1,7 @@
 import processVideo from '@/lib/processVideo'
 import { processSchema } from '@/lib/schemas'
 import { z } from 'zod'
+import r2 from '@/lib/r2'
 // import { MUTATIONS } from '@/db/queries'
 
 export async function POST(request: Request) {
@@ -23,8 +24,9 @@ export async function POST(request: Request) {
     return Response.json({ error: result.error }, { status: 500 })
   }
 
-  console.log('Processed video', result.data)
-  return Response.json({ data: result.data })
+  const clipUrl = r2.presign(outputKey)
+
+  return Response.json({ data: result.data, clipUrl })
 
   // const ownerId = 'some bs'
   // const createdClip = await MUTATIONS.createClip({game, outputDuration, ownerId, , })
