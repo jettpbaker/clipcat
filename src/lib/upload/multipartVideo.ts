@@ -178,7 +178,7 @@ export async function uploadMultipartVideo(
         partTotal += part
       })
       const totalBytesUploaded = partTotal
-      const progress = Math.floor((totalBytesUploaded / totalBytes) * 100)
+      const progress = totalBytesUploaded / totalBytes
 
       await options.onUploadProgress?.({
         uploadedBytes: totalBytesUploaded,
