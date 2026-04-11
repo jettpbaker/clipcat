@@ -22,8 +22,7 @@ export default function UploadForm() {
     const inputKey = `originals/${crypto.randomUUID()}.mp4`
 
     function handleUploadProgress({ progress }: { progress: number }) {
-      const percentage = progress * 100
-      console.log(`Upload Progress: ${Math.floor(percentage)}%`)
+      console.log(`Upload Progress: ${progress}%`)
     }
 
     function formatTime(t: string) {
