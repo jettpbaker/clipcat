@@ -13,6 +13,7 @@ async function uploadPart(
   uploadId: string,
   partNumber: number,
   key: string,
+  handlePartUploaded: (ctx: { loaded: number; partNumber: number }) => void,
 ): Promise<{ ETag: string; PartNumber: number }> {
   const start = partNumber * partSize
   const end = Math.min(start + partSize, file.size)
@@ -20,15 +21,36 @@ async function uploadPart(
 
   const { url } = await getPartUploadUrl(uploadId, partNumber, key)
 
-  const response = await ky.put(url, {
-    timeout: false,
-    body: chunk,
-  })
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', url)
 
-  const etag = response.headers.get('etag')
-  if (!etag) throw new Error(`Missing ETag for part ${partNumber + 1}`)
-  // s3/r2 completion also expects 1-based indexing
-  return { ETag: etag, PartNumber: partNumber + 1 }
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        const etag = xhr.getResponseHeader('etag')
+        if (etag) {
+          resolve({ ETag: etag, PartNumber: partNumber + 1 })
+        } else {
+          reject(`Missing ETag for part ${partNumber + 1}`)
+        }
+        // s3/r2 completion also expects 1-based indexing
+      } else {
+        console.error('Upload failed:', xhr.statusText)
+        reject(`Upload failed: ${xhr.statusText}`)
+      }
+    }
+
+    xhr.onerror = function () {
+      console.error('Upload failed:', xhr.statusText)
+      reject(`Upload failed: ${xhr.statusText}`)
+    }
+
+    xhr.upload.onprogress = function (ev) {
+      handlePartUploaded({ loaded: ev.loaded, partNumber })
+    }
+
+    xhr.send(chunk)
+  })
 }
 
 async function startMultipartUpload(file: File, key: string): Promise<StartMultiPartUploadResult> {
@@ -117,8 +139,6 @@ export type UploadMultipartVideoOptions = {
     uploadedBytes: number
     totalBytes: number
     progress: number
-    completedParts: number
-    totalParts: number
   }) => void | Promise<void>
   onUploadComplete?: (ctx: { key: string; uploadId: string }) => void | Promise<void>
 }
@@ -140,6 +160,33 @@ export async function uploadMultipartVideo(
     const partCount = Math.ceil(file.size / partSize)
     const totalBytes = file.size
 
+    const parts = new Map()
+    for (let i = 0; i < partCount; i++) {
+      parts.set(i, 0)
+    }
+
+    async function handlePartUploaded({
+      loaded,
+      partNumber,
+    }: {
+      loaded: number
+      partNumber: number
+    }) {
+      parts.set(partNumber, loaded)
+      let partTotal = 0
+      parts.forEach((part) => {
+        partTotal += part
+      })
+      const totalBytesUploaded = partTotal
+      const progress = totalBytesUploaded / totalBytes
+
+      await options.onUploadProgress?.({
+        uploadedBytes: totalBytesUploaded,
+        totalBytes,
+        progress,
+      })
+    }
+
     await options.onUploadStart?.({
       key: options.key,
       uploadId,
@@ -149,7 +196,6 @@ export async function uploadMultipartVideo(
     })
 
     const uploadedParts: Array<{ ETag: string; PartNumber: number }> = []
-    let uploadedBytes: number = 0
     const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY_SIZE
     for (let batchStart = 0; batchStart < partCount; batchStart += concurrency) {
       const batchEnd = Math.min(batchStart + concurrency, partCount)
@@ -157,22 +203,13 @@ export async function uploadMultipartVideo(
 
       for (let i = batchStart; i < batchEnd; i++) {
         const partNumber = i
-        batchPromises.push(uploadPart(file, partSize, uploadId, partNumber, options.key))
+        batchPromises.push(
+          uploadPart(file, partSize, uploadId, partNumber, options.key, handlePartUploaded),
+        )
       }
 
       const batchResults = await Promise.all(batchPromises)
       uploadedParts.push(...batchResults)
-
-      const batchBytes = batchResults.length * partSize
-      uploadedBytes += batchBytes
-      const progress = uploadedBytes / totalBytes
-      await options.onUploadProgress?.({
-        uploadedBytes,
-        totalBytes,
-        progress,
-        completedParts: uploadedParts.length,
-        totalParts: partCount,
-      })
     }
 
     uploadedParts.sort((a, b) => a.PartNumber - b.PartNumber)
