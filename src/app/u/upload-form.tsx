@@ -6,6 +6,7 @@ import tryCatch from '@/lib/tryCatch'
 import { processSchema } from '@/lib/schemas'
 import { uploadMultipartVideo } from '@/lib/upload/multipartVideo'
 import trimVideo from '@/lib/trimVideo'
+import { nanoid } from 'nanoid'
 
 import { useRef, useState } from 'react'
 
@@ -16,6 +17,7 @@ export default function UploadForm() {
 
   async function handleSumbit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
+    console.time('e2e')
 
     setClipUrl(null)
 
@@ -27,7 +29,7 @@ export default function UploadForm() {
       return
     }
 
-    const inputKey = `originals/${crypto.randomUUID()}.mp4`
+    const inputKey = `o/${nanoid()}.mp4`
 
     function handleUploadProgress({ progress }: { progress: number }) {
       const now = performance.now()
@@ -51,7 +53,6 @@ export default function UploadForm() {
 
     const startSeconds = formatTime(String(start))
     const endSeconds = formatTime(String(end))
-    const duration = endSeconds - startSeconds
 
     console.time('trim-video')
     const trimmed = await trimVideo(file, startSeconds, endSeconds)
@@ -72,7 +73,7 @@ export default function UploadForm() {
       return
     }
 
-    const startProcessingBody = { inputKey, duration, game }
+    const startProcessingBody = { inputKey, game }
     const startProcessingBodyParsed = processSchema.safeParse(startProcessingBody)
 
     if (!startProcessingBodyParsed.success) {
@@ -106,6 +107,7 @@ export default function UploadForm() {
       console.error('Processing failed', processingErr)
       return
     }
+    console.timeEnd('e2e')
   }
 
   return (

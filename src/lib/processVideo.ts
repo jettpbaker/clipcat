@@ -5,7 +5,6 @@ import { ModalClient } from 'modal'
 type ProcessVideoProps = {
   inputKey: string
   outputKey: string
-  duration: number
 }
 
 type ProcessVideoResult =
@@ -32,7 +31,6 @@ type ProcessVideoResult =
 export default async function processVideo({
   inputKey,
   outputKey,
-  duration,
 }: ProcessVideoProps): Promise<ProcessVideoResult> {
   const modal = new ModalClient()
   const compress = await modal.functions.fromName('clipcat-transcode', 'compress')
@@ -41,7 +39,6 @@ export default async function processVideo({
     const result = await compress.remote([], {
       input_key: inputKey,
       output_key: outputKey,
-      duration,
     })
 
     if (result.ok) {

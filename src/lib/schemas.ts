@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 export const processSchema = z.object({
   inputKey: z.string().min(1),
-  duration: z.coerce.number().positive(),
 })
 
 export const startUploadSchema = z.object({

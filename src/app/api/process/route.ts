@@ -1,7 +1,7 @@
 import processVideo from '@/lib/processVideo'
 import { processSchema } from '@/lib/schemas'
 import { z } from 'zod'
-import r2 from '@/lib/r2'
+import { nanoid } from 'nanoid'
 // import { MUTATIONS } from '@/db/queries'
 
 export async function POST(request: Request) {
@@ -11,12 +11,12 @@ export async function POST(request: Request) {
   if (!parsed.success)
     return Response.json({ error: z.flattenError(parsed.error) }, { status: 400 })
 
-  const { inputKey, duration } = parsed.data
-  const outputKey = `clips/${crypto.randomUUID()}.mp4`
+  const { inputKey } = parsed.data
+  const outputKey = `c/${nanoid()}.mp4`
 
   console.log('Processing video...')
   console.time('processing')
-  const result = await processVideo({ inputKey, outputKey, duration })
+  const result = await processVideo({ inputKey, outputKey })
   console.timeEnd('processing')
 
   if (!result.ok) {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     return Response.json({ error: result.error }, { status: 500 })
   }
 
-  const clipUrl = r2.presign(outputKey)
+  const clipUrl = `https://clips.clipcat.xyz/${outputKey}`
 
   return Response.json({ data: result.data, clipUrl })
 
