@@ -2,11 +2,13 @@
 
 import ky from 'ky'
 
-import tryCatch from '@/lib/tryCatch'
-import { processSchema } from '@/lib/schemas'
+import { enqueueClipProcessingSchema } from '@/lib/schemas'
 import { uploadMultipartVideo } from '@/lib/upload/multipartVideo'
 import trimVideo from '@/lib/trimVideo'
 import { nanoid } from 'nanoid'
+import { toast } from 'sonner'
+
+import { createClipResponseSchema } from '@/lib/schemas'
 
 import { useRef, useState } from 'react'
 
@@ -17,7 +19,6 @@ export default function UploadForm() {
 
   async function handleSumbit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
-    console.time('e2e')
 
     setClipUrl(null)
 
@@ -54,13 +55,11 @@ export default function UploadForm() {
     const startSeconds = formatTime(String(start))
     const endSeconds = formatTime(String(end))
 
-    console.time('trim-video')
+    const uploadStartedAt = new Date()
     const trimmed = await trimVideo(file, startSeconds, endSeconds)
-    console.timeEnd('trim-video')
 
-    console.time('upload-video')
     await uploadMultipartVideo(trimmed, { key: inputKey, onUploadProgress: handleUploadProgress })
-    console.timeEnd('upload-video')
+    const uploadCompletedAt = new Date()
 
     if (typeof start !== 'string' || typeof end !== 'string') {
       console.error('Start or end time not provided')
@@ -73,41 +72,26 @@ export default function UploadForm() {
       return
     }
 
-    const startProcessingBody = { inputKey, game }
-    const startProcessingBodyParsed = processSchema.safeParse(startProcessingBody)
-
-    if (!startProcessingBodyParsed.success) {
-      console.error('Upload failed', startProcessingBodyParsed.error)
+    const title = formData.get('title')
+    if (typeof title !== 'string') {
+      console.error('Title not provided')
       return
     }
 
-    const [processingErr, processingData] = await tryCatch(
-      ky
-        .post('/api/process', {
-          // TODO: Decide on a proper timeout for this
-          timeout: false,
-          json: startProcessingBodyParsed.data,
-        })
-        .json<{
-          data: {
-            inputKey: string
-            outputKey: string
-            duration: number
-            outputSize: number
-            videoBitrateKbps: number
-          }
-          clipUrl: string
-        }>(),
-    )
+    const body = { game, title, inputKey, uploadStartedAt, uploadCompletedAt }
+    const parsedBody = enqueueClipProcessingSchema.safeParse(body)
 
-    if (!processingData) throw new Error('Missing processing data')
-    setClipUrl(processingData.clipUrl)
-
-    if (processingErr) {
-      console.error('Processing failed', processingErr)
+    if (!parsedBody.success) {
+      console.error('Upload failed', parsedBody.error)
       return
     }
-    console.timeEnd('e2e')
+
+    const response = await ky.post('/api/clips', { json: parsedBody.data }).json()
+    const result = createClipResponseSchema.parse(response)
+    if (!result.ok) {
+      toast.error(result.error)
+      console.error(result.error)
+    }
   }
 
   return (
@@ -117,6 +101,7 @@ export default function UploadForm() {
         <input type="text" name="start" placeholder="Start: 00:00" />
         <input type="text" name="end" placeholder="End: 00:00" />
         <input type="text" name="game" placeholder="Clip Game" />
+        <input type="text" name="title" placeholder="Clip Game" />
         <button type="submit">Upload</button>
       </form>
 

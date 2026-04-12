@@ -1,4 +1,5 @@
 import { ReactScan } from '@/components/react-scan'
+import { Toaster } from '@/components/ui/sonner'
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono, Roboto_Slab } from 'next/font/google'
 import './globals.css'
@@ -42,6 +43,7 @@ export default function RootLayout({
     >
       <ReactScan />
       <body className="min-h-full flex flex-col">{children}</body>
+      <Toaster />
     </html>
   )
 }

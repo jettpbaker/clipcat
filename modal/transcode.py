@@ -3,6 +3,7 @@ import modal
 app = modal.App("clipcat-transcode")
 
 r2_secret = modal.Secret.from_name("clipcat-r2")
+callback_secret = modal.Secret.from_name("clipcat-callback")
 image = (
     modal.Image.from_registry("nvidia/cuda:12.4.1-runtime-ubuntu22.04", add_python="3.11")
     .entrypoint([])
@@ -23,7 +24,7 @@ FFMPEG_LOG_OUTPUT_LIMIT = 40_000
 
 @app.function(
     image=image,
-    secrets=[r2_secret],
+    secrets=[r2_secret, callback_secret],
     gpu=["L40S", "L4"],
     region=["ap-northeast", "ap"],
 )
@@ -553,6 +554,6 @@ def compress(input_key: str, output_key: str):
 
 
 @app.local_entrypoint()
-def main(input_key: str, output_key: str):
-    result = compress.remote(input_key, output_key)
+def main(clip_id, input_key: str, output_key: str):
+    result = compress.remote(clip_id, input_key, output_key)
     print("compressed video", result)
