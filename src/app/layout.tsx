@@ -1,3 +1,4 @@
+import { ReactScan } from '@/components/react-scan'
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono, Roboto_Slab } from 'next/font/google'
 import './globals.css'
@@ -39,6 +40,7 @@ export default function RootLayout({
         robotoSlabHeading.variable,
       )}
     >
+      <ReactScan />
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   )
