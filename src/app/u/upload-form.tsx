@@ -7,14 +7,17 @@ import { processSchema } from '@/lib/schemas'
 import { uploadMultipartVideo } from '@/lib/upload/multipartVideo'
 import trimVideo from '@/lib/trimVideo'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 export default function UploadForm() {
   const [clipUrl, setClipUrl] = useState<null | string>(null)
   const [progress, setProgress] = useState<number>(0)
+  const lastProgressUpdateAt = useRef(0)
 
   async function handleSumbit(e: React.SubmitEvent<HTMLFormElement>) {
     e.preventDefault()
+
+    setClipUrl(null)
 
     const formData = new FormData(e.currentTarget)
 
@@ -27,6 +30,9 @@ export default function UploadForm() {
     const inputKey = `originals/${crypto.randomUUID()}.mp4`
 
     function handleUploadProgress({ progress }: { progress: number }) {
+      const now = performance.now()
+      if (now - lastProgressUpdateAt.current < 100) return
+      lastProgressUpdateAt.current = now
       const percentage = Math.floor(progress * 100)
       setProgress(percentage)
     }

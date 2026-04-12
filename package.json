@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "bun --bun next dev",
+    "dev:node": "next dev",
+    "dev:webpack": "bun --bun next dev --webpack",
     "build": "bun --bun next build",
     "start": "bun --bun next start",
     "lint": "oxlint",
